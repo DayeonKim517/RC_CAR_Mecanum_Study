@@ -1,0 +1,158 @@
+// Mecanum_Wheel_ RC_CAR PS2로 조종
+
+#include <PS2X_lib.h>
+#include <MotorDriver.h>
+
+PS2X ps2x;
+
+#define MOTORTYPE YF_IIC_RZ  
+uint8_t SerialDebug = 0; 
+
+const int offsetm1 = -1;
+const int offsetm2 = -1;
+const int offsetm3 = -1;
+const int offsetm4 = -1;
+
+#define PS2_DAT    10 
+#define PS2_CMD    11
+#define PS2_CS     12
+#define PS2_CLK    14
+
+int MAXSPEED = 4000;   
+int MINSPEED = 500;     
+int MOTORSPEED = 2000; 
+
+int MIDSPEED = MOTORSPEED;
+int M1Speed = MOTORSPEED;
+int M2Speed = MOTORSPEED;
+int M3Speed = MOTORSPEED;
+int M4Speed = MOTORSPEED;
+
+int speedm_x = 0;  
+int speedm_y = 0;  
+int speedm_w = 0;  
+
+#define pressures   false   
+#define rumble      true    
+
+bool EnRocker = 1;
+
+int error = 0;
+byte type = 0;
+byte vibrate = 0;
+
+MotorDriver motorDriver = MotorDriver(MOTORTYPE);
+void (* resetFunc) (void) = 0;
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("MotorDriver-IIC Test");
+  motorDriver.begin();
+  motorDriver.motorConfig(offsetm1, offsetm2, offsetm3, offsetm4);
+  motorDriver.setPWMFreq(500); 
+
+  error = ps2x.config_gamepad(PS2_CLK, PS2_CMD, PS2_CS, PS2_DAT, pressures, rumble);
+  delay(500);
+}
+
+void loop() {
+  if (error == 1) { 
+    Serial.println("ERROR!!");
+    delay(10);
+    resetFunc();
+  }
+  ps2x.read_gamepad(false, vibrate);
+  if (ps2x.ButtonPressed(PSB_PAD_UP)) {
+    motorDriver.setMotor(MOTORSPEED, -MOTORSPEED, -MOTORSPEED, MOTORSPEED);  
+    EnRocker = 0;
+  }
+  if (ps2x.ButtonPressed(PSB_PAD_RIGHT)) {
+    motorDriver.setMotor(-MOTORSPEED, -MOTORSPEED, MOTORSPEED, MOTORSPEED);  
+    EnRocker = 0;
+  }
+  if (ps2x.ButtonPressed(PSB_PAD_LEFT)) {
+    motorDriver.setMotor(MOTORSPEED, MOTORSPEED, -MOTORSPEED, -MOTORSPEED);  
+  }
+  if (ps2x.ButtonPressed(PSB_PAD_DOWN)) {
+    motorDriver.setMotor(-MOTORSPEED, MOTORSPEED, MOTORSPEED, -MOTORSPEED); 
+    EnRocker = 0;
+  }
+
+  if (ps2x.ButtonPressed(PSB_SQUARE)) {
+    motorDriver.setAllMotor(MOTORSPEED); 
+    EnRocker = 0;
+  }
+
+  if (ps2x.ButtonPressed(PSB_CIRCLE)) {
+    motorDriver.setAllMotor(-MOTORSPEED);  
+    EnRocker = 0;
+  }
+
+  if (ps2x.ButtonPressed(PSB_SELECT)) {
+    MOTORSPEED = MIDSPEED;
+    vibrate = 100;
+  }
+
+  if (ps2x.ButtonPressed(PSB_R1)) {   
+    MOTORSPEED += 300;
+    vibrate = 50;
+    if (MOTORSPEED > MAXSPEED) {
+      MOTORSPEED = MAXSPEED;
+      vibrate = 150;
+    }
+  }
+
+  if (ps2x.ButtonPressed(PSB_R2)) {
+    MOTORSPEED -= 300;
+    vibrate = 50;
+    if (MOTORSPEED < MINSPEED) {
+      MOTORSPEED = MINSPEED;
+      vibrate = 150;
+    }
+  }
+  if (ps2x.ButtonReleased(PSB_PAD_UP) || ps2x.ButtonReleased(PSB_PAD_RIGHT) || ps2x.ButtonReleased(PSB_PAD_LEFT) ||
+      ps2x.ButtonReleased(PSB_PAD_DOWN) || ps2x.ButtonReleased(PSB_SQUARE) || ps2x.ButtonReleased(PSB_CIRCLE)) {
+    motorDriver.setAllMotor(0); 
+    EnRocker = 1;
+  }
+  if (ps2x.ButtonReleased(PSB_R1) || ps2x.ButtonReleased(PSB_R2) || ps2x.ButtonReleased(PSB_SELECT)) {
+    vibrate = 0;
+  }
+  if (EnRocker) {
+    if (ps2x.Analog(PSS_LY) < 120 || ps2x.Analog(PSS_LY) > 135 || ps2x.Analog(PSS_LX) < 120 ||
+        ps2x.Analog(PSS_LX) > 135 || ps2x.Analog(PSS_RX) < 120 || ps2x.Analog(PSS_RX) > 135)
+    {
+      if (ps2x.Analog(PSS_LY) < 127 && ps2x.Analog(PSS_LY) >= 0) {
+        speedm_y = map(ps2x.Analog(PSS_LY), 120, 0, 0, MOTORSPEED);
+      } else if (ps2x.Analog(PSS_LY) > 127 && ps2x.Analog(PSS_LY) <= 255) {
+        speedm_y = map(ps2x.Analog(PSS_LY), 255, 135, -MOTORSPEED, 0);
+      } else
+        speedm_y = 0;
+
+      if (ps2x.Analog(PSS_LX) < 128 && ps2x.Analog(PSS_LX) >= 0) {
+        speedm_x = map(ps2x.Analog(PSS_LX), 0, 120, MOTORSPEED, 0);
+      } else if (ps2x.Analog(PSS_LX) > 128 && ps2x.Analog(PSS_LX) <= 255) {
+        speedm_x = map(ps2x.Analog(PSS_LX), 135, 255, 0, -MOTORSPEED);
+      } else
+        speedm_x = 0;
+
+      if (ps2x.Analog(PSS_RX) < 128 && ps2x.Analog(PSS_RX) >= 0) {
+        speedm_w = map(ps2x.Analog(PSS_RX), 0, 120, MOTORSPEED, 0);
+      } else if (ps2x.Analog(PSS_RX) > 128 && ps2x.Analog(PSS_RX) <= 255) {
+        speedm_w = map(ps2x.Analog(PSS_RX), 135, 255, 0, -MOTORSPEED);
+      } else
+        speedm_w = 0;
+
+      M1Speed = speedm_y + speedm_x + speedm_w; 
+      M2Speed = -speedm_y + speedm_x + speedm_w;
+      M3Speed = -speedm_y - speedm_x + speedm_w;
+      M4Speed = speedm_y - speedm_x + speedm_w;
+
+      motorDriver.setMotor(M1Speed, M2Speed, M3Speed, M4Speed);
+
+    } else {
+      motorDriver.stopMotor(MAll); 
+    }
+  }
+  delay(50);
+}
