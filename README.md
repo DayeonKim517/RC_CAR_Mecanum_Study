@@ -1,4 +1,4 @@
-# RC_CAR_Mecanum_Study!
+# RC_CAR_Mecanum_Wheel 모빌리티 엔지니어링 공부에 사용 
 ### RC CAR 메카넘 휠, 아두이노와 센서 쉴드로 조립 후 작동
 - PS2로 연결 후 작동 확인
 
